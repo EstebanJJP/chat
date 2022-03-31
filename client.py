@@ -4,11 +4,15 @@ from time import sleep
 
 from multiprocessing.connection import Listener
 from multiprocessing import Process
+import sys
 
-local_listener = (('127.0.0.1', 5001),b'secret client password')
 
-def client_listener():
-    cl = Listener(address = local_listener[0], authkey = local_listener[1])
+
+
+def client_listener(info):
+    print(f"Opening listener at {info}")
+    cl = Listener(address = (info['adress'], info['port']),
+                  authkey=info['authkey'])
     print ('.............client listener starting') 
     print ('.............accepting conexions')
     while True:
@@ -18,26 +22,36 @@ def client_listener():
         print ('.............message received from server', m)
 
 
-if __name__ == '__main__':
-
+def main(server_adress, info):
     print ('trying to connect')
-    conn = Client(address=('127.0.0.1', 6000), authkey=b'secret password server')
-    conn.send(local_listener)
+    with Client(adress=(server_adress, 6000),
+                authkey=b'secret password server') as conn:
+        cl = Process(target=client_listener, args=(info,))
+        cl.start()
+        conn.send(info)
+        connected=True
+        while connected:
+            value = input("Send message('quit' quit connection)?")
+            print("connection continued...")
+            conn.send(value)
+            connected = value!='quit'
+        cl.terminate()
+    print("end client")
 
-    cl = Process(target = client_listener, args = ())
-    cl.start()
+if __name__ == '__main__':
+    server_adress = '127.0.0.1'
+    client_adress = '127.0.0.1'
+    client_port = 6001
     
-    connected = True
-    while connected:
-        value = input("Send message ('Q' quit connection)?")
-        if value == 'Q':
-            connected = False
-        else:
-            print ("connection continued...")
-            conn.send("connected")
-        
-    print ("last message")
-    conn.send("quit")
-    conn.close()
-    cl.terminate()
-    print ("end client")
+    if len(sys.argv) > 1:
+        client_port = int(sys.argv[1])
+    if len(sys.argv) > 2:
+        client_adress = sys.argv[2]
+    if len(sys.argv) > 3:
+        server_adress = sys.argv[3]
+    info = {
+            'adress': client_adress,
+            'port': client_port,
+            'authkey': b'secret client server'
+    }
+    main(server_adress,info)
